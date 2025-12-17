@@ -1,31 +1,55 @@
-name: Generate Keystore Helper
+name: Build Android Release APK
 
 on:
-  workflow_dispatch: # 手动触发
+  workflow_dispatch:
 
 jobs:
-  generate-key:
+  build:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Generate Keystore and Base64
-        run: |
-          # 1. 使用命令行生成 .jks 文件
-          # 密码统一设定为: 123456
-          # 别名设定为: my-key-alias
-          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-key-alias -storepass 123456 -keypass 123456 -dname "CN=User, OU=Unit, O=Org, L=City, S=State, C=US"
-          
-          # 2. 将文件转换为 Base64 字符串并保存到文本文件
-          base64 -w 0 release.jks > key_base64.txt
+      # 依然保持 master，因为项目代码依赖较新
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'master'
 
-      - name: Upload Result
+      - name: Install Dependencies
+        run: |
+          cd simple_live_app
+          flutter pub get
+
+      # --- 关键步骤：配置 Release 签名 ---
+      - name: Configure Keystore
+        run: |
+          cd simple_live_app/android
+          
+          # 1. 解码 Base64 还原为 .jks 文件
+          echo "${{ secrets.KEY_JKS }}" | base64 --decode > app/upload-keystore.jks
+          
+          # 2. 创建 key.properties 使用真实的密码
+          echo "storePassword=${{ secrets.KEY_PASSWORD }}" > key.properties
+          echo "keyPassword=${{ secrets.ALIAS_PASSWORD }}" >> key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> key.properties
+          echo "storeFile=../app/upload-keystore.jks" >> key.properties
+
+      # --- 编译命令改为 release ---
+      - name: Build APK
+        run: |
+          cd simple_live_app
+          flutter build apk --release --split-per-abi
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: keystore-secret-string
-          path: key_base64.txt
+          name: simple-live-release-apk
+          path: simple_live_app/build/app/outputs/flutter-apk/*.apk
