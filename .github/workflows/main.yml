@@ -1,49 +1,31 @@
-name: Build Android APK
+name: Generate Keystore Helper
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 手动触发
 
 jobs:
-  build:
+  generate-key:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 修改点：切换到 master 渠道
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: 'master'
-
-      - name: Install Dependencies
+      - name: Generate Keystore and Base64
         run: |
-          cd simple_live_app
-          flutter pub get
+          # 1. 使用命令行生成 .jks 文件
+          # 密码统一设定为: 123456
+          # 别名设定为: my-key-alias
+          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-key-alias -storepass 123456 -keypass 123456 -dname "CN=User, OU=Unit, O=Org, L=City, S=State, C=US"
+          
+          # 2. 将文件转换为 Base64 字符串并保存到文本文件
+          base64 -w 0 release.jks > key_base64.txt
 
-      # 创建假的签名文件 (保持不变)
-      - name: Create dummy key.properties
-        run: |
-          cd simple_live_app/android
-          echo "storePassword=dummy_password" > key.properties
-          echo "keyPassword=dummy_password" >> key.properties
-          echo "keyAlias=dummy_alias" >> key.properties
-          echo "storeFile=../app/dummy_keystore.jks" >> key.properties
-
-      - name: Build APK
-        run: |
-          cd simple_live_app
-          flutter build apk --debug --split-per-abi
-
-      - name: Upload APK
+      - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-apk
-          path: simple_live_app/build/app/outputs/flutter-apk/*.apk
+          name: keystore-secret-string
+          path: key_base64.txt
