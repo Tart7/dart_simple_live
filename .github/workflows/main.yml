@@ -17,19 +17,18 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      # 修改点：切换到 master 渠道
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
-          flutter-version: '3.22.0' # 锁定一个较新的稳定版，减少兼容问题
+          channel: 'master'
 
       - name: Install Dependencies
         run: |
           cd simple_live_app
           flutter pub get
 
-      # --- 新增步骤：创建假的 key.properties ---
-      # 这步是为了防止 build.gradle.kts 读取不到配置而报错
+      # 创建假的签名文件 (保持不变)
       - name: Create dummy key.properties
         run: |
           cd simple_live_app/android
